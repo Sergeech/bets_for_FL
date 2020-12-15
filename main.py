@@ -39,6 +39,9 @@ slovar = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e',
       'Ю':'U','Я':'YA'}
 
 def get_it_inline(home_team, away_team):
+    """ Задача функии забирать данные по индивидуальному тоталу за 10 минут до игры
+        Но Идея сбрать с парсинга, мне не нравиться. Ведь можно забирать по апи ODDS
+    """
     options = Options()
     #set headless mode
     options.add_argument("--headless")
@@ -46,8 +49,8 @@ def get_it_inline(home_team, away_team):
     browser = webdriver.Firefox(options = options)
     browser.get('https://www.fonbet.ru/bets/handball')
     poster_page = browser.page_source
-    print('Проверяю в фонбет')
-    print('На этом месте скрипт завис 27 ноября, процессор на сервере загудел на полную')
+    print('Проверяю в фонбет по линии get_it_inline')
+    print('На этом месте скрипт подвисает при matches 0, процессор на сервере загудел на полную')
     for i in range(3):
         try:
             m = None
@@ -93,7 +96,7 @@ def get_it_inline(home_team, away_team):
             time.sleep(10)
 
             headers = [h.text for h in browser.find_elements_by_xpath('//div[contains(@class, "event-view-tables-wrap")]/div/div[1]/div/div[3]')]
-            print(headers)
+            ##print(headers)
             index = headers.index('Индивидуальные тоталы голов')
 
             home_team_total = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[1]/div/div').text.replace('Тотал ', '')
@@ -113,6 +116,10 @@ def get_it_inline(home_team, away_team):
     browser.close()
 
 def get_kf_live(home_team, away_team):
+    """ Функция парсит фонбет и сравнивает команды по названиям
+        с загруженными по апи.
+        Также название с фонбет переводиться команда на англ и тоже сравнивается
+    """
     options = Options()
     #set headless mode
     options.add_argument("--headless")
@@ -133,7 +140,7 @@ def get_kf_live(home_team, away_team):
         titles = []
         for match in matches:
             index = matches.index(match)
-            print(index, 'индекс')
+            #print(index, 'индекс')
             title = None
             try:
                 title = match.find_elements_by_xpath('//a[@class="table__match-title-text"]/div')[index].text.upper()
@@ -166,7 +173,7 @@ def get_kf_live(home_team, away_team):
                     if title.find(home_team_daetail.upper()) != -1 or translit_title.find(home_team_daetail.upper()) != -1:
                         m = match
                         found = True
-                        print('А нет, посмотрел внимательно и нашел Совпадение по хозяевам)))')
+                        print('Совпадение по хозяевам')
 
                         break
 
@@ -201,7 +208,7 @@ def get_kf_live(home_team, away_team):
         browser.close()
         return None
 
-    print(headers)
+    print(headers, 'headers')
     index = headers.index('Индивидуальные тоталы голов')
 
     home_team_total = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[1]/div/div').text.replace('Тотал ', '')
@@ -230,6 +237,13 @@ def get_kf_live(home_team, away_team):
     return odds
 
 def day_static(group, events, day):
+    """ Функция должна иметь счетчик прибольности из расчета:
+        Каждый новый месяц счетчит обнуляем до 100%
+        в конце каждого дня отправляем сообщение в телеграмм канал
+        message = (
+            Итог дня: статистика за вчера + домашний или гостевой коэфиент выйгранных ставок - 10% за каждую проигранную ставку = результат %'
+
+    """
     yesterday_static, chat_id = group.yesterday_static, group.chat_id
     kfs = []
     result, percent = 0, 0
@@ -279,6 +293,9 @@ def add_to_message(message_id, chat_id, text, prev_text, markdown = True):
     response = requests.get(message_str)
 
 def get_events():
+    """ Функция собирает по Апи данные о предстоящих играх и создает новые евенты:
+        Кто играет, когда играет, ссылка на евент
+    """
     sport_id = 78
     url = 'https://api.betsapi.com/v2/events/upcoming'
     params = {'token': api_token,
@@ -326,6 +343,11 @@ def get_events():
     return [True]
 
 def get_event_data(event_id, event_url, home_team, away_team):
+    """ Функция дополняет созданный евент:
+    Результаты последних 10 игр (ИТ)
+    Результат последних 3 игр очных вчтреч.
+    И сортирует от большего к меньшему.
+    """
     home_history, away_history, ftf_history = None, None, None
 
     it_home, it_away = None, None
@@ -434,6 +456,16 @@ def get_event_data(event_id, event_url, home_team, away_team):
     )
 
 def check_updates(event, group):
+    """ А эта функиция делает слишком много. Попробую описать
+        Задача стоит в обновлении данный, Сейчас обновляются
+        ИТ 10 игр и ИТ 3 очных встреч,
+        делаются подсчет калькулятора F1 , F2 , F3
+        проверяется time status, при статусе ==1 вызывается get_kf_live и делается сравнение названий
+        если совпадения названий найдено, то сверяется Результаты калькулятора с онлайн,
+        И если и здесь проходят по условиям, то уходит сигнал в телеграмм канал.
+        А потом еще при тайм статусе ==3 считывается результат игры,
+        смотриться выйгрышь был или проигрышь и досылается сигнал в телеграмм с Конечным итогом
+    """
     event_id, event_league = event.event_id, event.event_league
     home_team, away_team = event.home_team, event.away_team
     update_status = event.update_status
@@ -657,6 +689,7 @@ def check_updates(event, group):
                 if F1_using == 'home not' or 'Не используется' or 'not' or eval(f'{calc_f1_home} {F1_using} {calc_f2_home}'):
                     # F1 and F2
                     event.home_total = float(event.home_total)
+                    event.away_total = float(event.away_total)
                     print('Проверка F1 home', F1_using)
                     if F2_using == 'not' or (more_or_less == 'more' and event.home_total <= calc_f2_home) or (more_or_less == 'less' and floatevent.home_total >= calc_f2_home):
                         #if F2_using != 'Не используется' or (more_or_less == 'more' and event.home_total < calc_f2_home) or (more_or_less == 'less' and event.home_total > calc_f2_home):
@@ -684,7 +717,7 @@ def check_updates(event, group):
 
                             event.message_text = message
                             event.odd_team = 'home'
-                            event.odd_minutes = f'{minutes}:{seconds}'
+                            event.odd_minutes = f'{minutes}'
 
                             message_id = send_message(message, chat_id)
                             event.message_id = message_id
@@ -726,7 +759,7 @@ def check_updates(event, group):
 
                             event.message_text = message
                             event.odd_team = 'away'
-                            event.odd_minutes = f'{minutes}:{seconds}'
+                            event.odd_minutes = f'{minutes}'
 
                             message_id = send_message(message, chat_id)
                             event.message_id = message_id
@@ -911,7 +944,7 @@ if __name__ == "__main__":
 
         now_time = datetime.datetime.now()
         print(now_time)
-        if now_time.hour == 23 and now_time.minute == 55:
+        if now_time.hour == 23 and now_time.minute == 55 or now_time.minute == 56 or now_time.minute == 57 or now_time.minute == 58:
             for group in groups:
                 today_events = [t for t in Event.objects.all().filter(time_status = 3).exclude(odd_team = None).filter(group_odd = group) if datetime.datetime.fromtimestamp(t.event_start_time).day == now_time.day]
                 print(len(today_events))

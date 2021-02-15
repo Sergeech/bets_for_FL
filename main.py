@@ -130,6 +130,7 @@ def get_kf_live(home_team, away_team):
     poster_page = browser.page_source
     m = None
     titles = []
+    swap: bool = False
     index = -1
 
     for i in range(3):
@@ -142,9 +143,12 @@ def get_kf_live(home_team, away_team):
             index = matches.index(match)
             #print(index, 'индекс')
             title = None
+            title_home = title_away = ""
+            trans_title_home = trans_title_away = ""
             try:
                 title = match.find_elements_by_xpath('//a[@class="table__match-title-text"]/div')[index].text.upper()
                 titles.append(title)
+                title_home, title_away = title.split(" — ")
             except Exception:
                 continue
             #print(title, '    -     название в фонбет')
@@ -157,12 +161,22 @@ def get_kf_live(home_team, away_team):
                 translit_title = translit_title.replace(key, slovar[key])
 
             translit_title = translit_title.upper()
+
+            try:
+                trans_title_home, trans_title_away = translit_title.split(" — ")
+            except Exception as e:
+                pass
+
             #print(translit_title, '    -      перевод с фонбет на анг')
 
             #print(home_team.split(' '), ' - home_team.split(' ')')
             #print(away_team.split(' '))
 
             if title.find(home_team.upper()) != -1 or title.find(away_team.upper()) != -1 or translit_title.find(home_team.upper()) != -1 or translit_title.find(away_team.upper()) != -1:
+                if title_home.find(away_team.upper()) != -1 or title_away.find(
+                        home_team.upper()) != -1 or trans_title_home.find(
+                        away_team.upper()) != -1 or trans_title_away.find(home_team.upper()) != -1:
+                    swap = True
                 m = match
                 break
 
@@ -171,6 +185,9 @@ def get_kf_live(home_team, away_team):
                 print("Совпадение НЕ найдено")
                 for home_team_daetail in home_team.split(' '):
                     if title.find(home_team_daetail.upper()) != -1 or translit_title.find(home_team_daetail.upper()) != -1:
+                        if title_away.find(home_team_daetail.upper()) != -1 or trans_title_away.find(
+                                home_team_daetail.upper()) != -1:
+                            swap = True
                         m = match
                         found = True
                         print('Совпадение по хозяевам')
@@ -179,6 +196,9 @@ def get_kf_live(home_team, away_team):
 
                 for away_team_daetail in away_team.split(' '):
                     if title.find(away_team_daetail.upper()) != -1 or translit_title.find(away_team_daetail.upper()) != -1:
+                        if title_home.find(away_team_daetail.upper()) != -1 or trans_title_home.find(
+                                away_team_daetail.upper()) != -1:
+                            swap = True
                         m = match
                         found = True
                         print('Совпадение по гостям')
@@ -213,11 +233,11 @@ def get_kf_live(home_team, away_team):
 
     home_team_total = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[1]/div/div').text.replace('Тотал ', '')
     home_team_more_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[2]/div/div/div').text
-    home_team_less_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[2]/div/div/div').text
+    home_team_less_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[1]/div[1]/div[2]/div[3]/div/div/div').text
 
     away_team_total = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[2]/div[1]/div[2]/div[1]/div/div').text.replace('Тотал ', '')
     away_team_more_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[2]/div[1]/div[2]/div[2]/div/div/div').text
-    away_team_less_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[2]/div[1]/div[2]/div[2]/div/div/div').text
+    away_team_less_odd = browser.find_element_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[2]/div[1]/div[2]/div[3]/div/div/div').text
 
     #tables_away = browser.find_elements_by_xpath(f'//div[contains(@class, "event-view-tables-wrap")]/div[{index + 1}]/div[2]/div[2]/div[1]/div[2]')
 
@@ -228,6 +248,9 @@ def get_kf_live(home_team, away_team):
     #away_team_total = tables_away[0].text
     #away_team_more_odd = tables_away[1].text
     #away_team_less_odd = tables_away[2].text
+
+    if swap:
+        home_team_total, home_team_more_odd, home_team_less_odd, away_team_total, away_team_more_odd, away_team_less_odd = away_team_total, away_team_more_odd, away_team_less_odd, home_team_total, home_team_more_odd, home_team_less_odd
 
     odds = [[home_team_total, home_team_more_odd, home_team_less_odd], [away_team_total, away_team_more_odd, away_team_less_odd]]
     print(odds)
